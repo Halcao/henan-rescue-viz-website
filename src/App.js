@@ -1,34 +1,57 @@
 import './App.css';
-import {BaiduMap, Marker, InfoWindow, NavigationControl, GeolocationControl, asyncWrapper} from 'react-baidu-maps';
-import {useState} from "react";
+import { BaiduMap, Marker, InfoWindow, NavigationControl, GeolocationControl, MarkerClusterer, asyncWrapper } from 'react-baidu-maps';
+import { isPointInRect } from "./Utils"
+import InfoItem from "./InfoItem"
+import { useState } from "react"
 
 const AsyncMap = asyncWrapper(BaiduMap);
 
 function App() {
     const [timeRange, setTimeRange] = useState(8)
     const [data, setData] = useState([])
-    let xhr = new XMLHttpRequest();
-    xhr.onload = function() {
-        if (data.length === 0) {
-            setData(JSON.parse(xhr.responseText));
-        }
-    };
-    xhr.open("GET", "https://api-henan.tianshili.me/parse_json.json");
-    xhr.send()
+    const [listData, setListData] = useState([])
 
-    let filterData = () => {
-        let filtered_data = [];
+    let mapRef = null
+    let displayData = []
+
+    fetch("https://api-henan.tianshili.me/parse_json.json")
+        .then(res => res.json())
+        .then(resp => {
+            resp = resp.map(e => {
+                const arr = e.link.split('/')
+                e.id = arr[arr.length - 1]
+                return e
+            })
+
+            displayData = resp
+            setData(resp)
+            // updateList(resp)
+        })
+
+    const filterData = () => {
+        let filtered_data
         if (timeRange === 12) {
             filtered_data = data
         } else {
             const currentTimestamp = Date.now()
-            for (let i = 0 ; i < data.length ; ++i) {
-                if (currentTimestamp - Date.parse(data[i]["Time"]) < timeRange * 60 * 60 * 1000) {
-                    filtered_data.push(data[i])
-                }
-            }
+            filtered_data = data.filter( item => currentTimestamp - Date.parse(item["Time"]) < timeRange * 60 * 60 * 1000)
         }
+        displayData = filtered_data
         return filtered_data.map(drawPoints)
+    }
+
+    const updateList = (items) => {
+        items = items || displayData
+
+        let list = []
+        if (mapRef != null && typeof(mapRef) !== 'undefined') {
+            const bounds = mapRef.getBounds()
+            list = items.filter( item => {
+                return isPointInRect(item.location, bounds)
+            })
+        }
+        console.log("list updated")
+        setListData(list)
     }
 
     let drawPoints = (record) => <Marker key={record["link"]} position={
@@ -54,8 +77,13 @@ function App() {
                </label>
     }
 
+    const list = () => {
+        return listData.slice(0, 30).map((item, i) => <InfoItem info={item} key={item.id} />)
+    }
+
     let handleSliderChange = (e) => {
         setTimeRange(e.target.value)
+        updateList()
     }
 
     return (
@@ -64,6 +92,9 @@ function App() {
                 <div>本网站仅聚合新浪微博上发布的有关2021年7月河南暴雨的求助信息，请大家注意辨别信息真伪。点击标记点可以看到更多信息及原微博地址。</div>
                 <br/>    
                 {slider()}
+                <div className="info-list">
+                    { list() }
+                </div>
             </div>
 
             <AsyncMap 
@@ -71,6 +102,13 @@ function App() {
                 loadingElement={<div style={{textAlign: 'center', fontSize: 40}}>Loading.....</div>}
                 enableScrollWheelZoom
                 enableDragging
+                onMapInstantiated={(ins) => { mapRef = ins }}
+                onZoomend={({map}) => {
+                    updateList()
+                }}
+                onMoveend={({map}) => {
+                    updateList()
+                }}
                 defaultZoom={9} 
                 defaultCenter={{lng:113.802193, lat:34.820333}} 
                 mapContainer={<div className={"mapDiv"}/>}>
@@ -82,7 +120,7 @@ function App() {
                 <GeolocationControl />
             </AsyncMap>
         </div>
-    );
+    )
 }
 
-export default App;
+export default App
