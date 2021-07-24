@@ -13,7 +13,7 @@
     <baidu-map class="map" :center="center" :scroll-wheel-zoom="true" :zoom="zoom" @ready="handler">
       <bm-navigation anchor="BMAP_ANCHOR_TOP_RIGHT"/>
 
-      <bm-marker v-for="item of displayData" :position="item.location" :key="item.link" @click="infoWindowOpen(item)">
+      <bm-marker v-for="item of displayData" :position="item.location" :key="item.id" @click="infoWindowOpen(item)">
       </bm-marker>
       <bm-info-window :show="infoWindow.show" :position="infoWindow.info.location" @close="infoWindowClose"
                       @open="infoWindowOpen" :offset="{ width: 0, height: -20 }">
@@ -71,6 +71,14 @@ export default {
     fetch('https://api-henan.tianshili.me/parse_json.json')
         .then(res => res.json())
         .then(res => {
+          res = res.map(e => {
+            const arr = e.link.split('/')
+            e.id = arr[arr.length - 1]
+            e.location.lag += Math.random()/1000
+            e.location.lat += Math.random()/1000
+            return e
+          })
+
           this.data = res
         })
   },
